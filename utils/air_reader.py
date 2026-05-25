@@ -238,11 +238,11 @@ class AirReader:
 ```
 
 scores 说明（每项 0~10）:
-- reply_need: 这条消息需要回复吗？（被提问/被@=高，闲聊路过=低）
+- reply_need: 这条消息和bot相关吗？（直接提问/聊到bot话题=高，和bot完全无关的闲聊=低，有趣的话题=中）
 - share_value: 值得分享给别人吗？（有趣/重要/和某人相关=高）
 - topic_match: 和某人感兴趣的话题匹配度
-- emotional_weight: 情感触发强度（被骂/被夸/求助=高，日常=低）
-- timing: 时机合适吗？（刚聊完=低，冷场后=高）
+- emotional_weight: 情感触发强度（求助/吐槽/分享心情/开玩笑=中~高，纯信息=低）
+- timing: 时机合适吗？（话题正热=高，已经聊完换话题了=低）
 
 action 说明:
 - reply: 在群里回复（内容由主模型生成）
@@ -281,9 +281,9 @@ affection_updates: 好感变化 0~5（不能为负）
             except (TypeError, ValueError):
                 scores[k] = 5.0
 
-        # 加权综合分（reply_need 和 timing 权重高一点）
-        weights = {"reply_need": 0.3, "share_value": 0.15, "topic_match": 0.15,
-                   "emotional_weight": 0.2, "timing": 0.2}
+        # 加权综合分（均衡分配，避免单项主导）
+        weights = {"reply_need": 0.25, "share_value": 0.15, "topic_match": 0.15,
+                   "emotional_weight": 0.25, "timing": 0.2}
         overall = sum(scores[k] * weights[k] for k in score_keys)
 
         aff_updates = {}
