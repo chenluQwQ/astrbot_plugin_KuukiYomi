@@ -597,9 +597,9 @@ class KuukiYomi(Star):
             self.social.update_profile(uid, name=name, affection_delta=delta)
 
         # ── 阈值过滤：分数太低直接沉默 ──
-        threshold = float(self._cfg_group("air_reading", "score_threshold", 3.0))
-        # 小模型主动给 reply 时，降低阈值门槛（尊重模型判断）
-        effective_threshold = threshold * 0.6 if action == "reply" else threshold
+        threshold = float(self._cfg_group("air_reading", "score_threshold", 3.5))
+        # 小模型主动给 reply 时，适当降低阈值（尊重模型判断）
+        effective_threshold = threshold * 0.8 if action == "reply" else threshold
         if overall < effective_threshold and action != "silent":
             logger.debug(f"[KuukiYomi] 分数 {overall:.1f} < 阈值 {effective_threshold:.1f}，覆盖为沉默")
             action = "silent"

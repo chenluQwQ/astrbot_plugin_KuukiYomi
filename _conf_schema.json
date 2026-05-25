@@ -45,7 +45,7 @@
                 "description": "评分阈值",
                 "type": "float",
                 "hint": "小模型综合评分低于此值时直接沉默（0~10）。调低=话多，调高=安静。",
-                "default": 3.0
+                "default": 3.5
             },
 
             "keywords": {
