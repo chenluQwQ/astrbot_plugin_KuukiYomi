@@ -6,31 +6,6 @@
         "default": true
     },
 
-    "cache_settings": {
-        "description": "对话缓存",
-        "type": "object",
-        "items": {
-            "group_cache_size": {
-                "description": "群聊缓存条数",
-                "type": "int",
-                "hint": "每群最大消息数（1~1000）",
-                "default": 200
-            },
-            "private_cache_size": {
-                "description": "私聊缓存条数",
-                "type": "int",
-                "hint": "每个私聊最大消息数（1~1000）",
-                "default": 100
-            },
-            "persist_interval_seconds": {
-                "description": "持久化间隔（秒）",
-                "type": "int",
-                "hint": "缓存自动保存间隔，0 表示不持久化",
-                "default": 60
-            }
-        }
-    },
-
     "air_reading": {
         "description": "读空气设置",
         "type": "object",
@@ -47,24 +22,32 @@
                 "default": "",
                 "_special": "select_provider"
             },
-            "judge_max_retries": {
-                "description": "小模型重试次数",
-                "type": "int",
-                "hint": "JSON 解析失败时重试几次",
-                "default": 2
-            },
             "bot_name": {
                 "description": "Bot 昵称",
                 "type": "string",
                 "hint": "群聊中 bot 的名字，消息里出现这个名字就触发判断",
                 "default": ""
             },
+
             "trigger_probability": {
                 "description": "触发概率",
                 "type": "float",
                 "hint": "每条群消息触发判断的概率（0~1）。被 @ 或命中关键词时固定触发。",
                 "default": 0.15
             },
+            "cooldown_seconds": {
+                "description": "同群冷却时间（秒）",
+                "type": "int",
+                "hint": "同群两次主动回复的最小间隔",
+                "default": 30
+            },
+            "score_threshold": {
+                "description": "评分阈值",
+                "type": "float",
+                "hint": "小模型综合评分低于此值时直接沉默（0~10）。调低=话多，调高=安静。",
+                "default": 4.0
+            },
+
             "keywords": {
                 "description": "触发关键词",
                 "type": "list",
@@ -79,6 +62,7 @@
                 "hint": "命中这些关键词时直接跳过",
                 "default": []
             },
+
             "private_keywords": {
                 "description": "私聊触发关键词",
                 "type": "list",
@@ -99,29 +83,24 @@
                 "hint": "开启后，私聊优先发给好感度高的人。关闭后只发给配置指定的目标。",
                 "default": true
             },
-            "fallback_persona": {
-                "description": "备用人设",
-                "type": "text",
-                "hint": "主动消息生成时优先读 AstrBot 的人设，如果读不到则使用这里填的内容。留空则主动消息不带人设生成。",
-                "default": ""
-            },
+
             "history_count": {
                 "description": "注入历史条数",
                 "type": "int",
                 "hint": "送给小模型判断时的最近聊天记录条数",
                 "default": 20
             },
-            "cooldown_seconds": {
-                "description": "同群冷却时间（秒）",
+            "judge_max_retries": {
+                "description": "小模型重试次数",
                 "type": "int",
-                "hint": "同群两次主动回复的最小间隔",
-                "default": 30
+                "hint": "JSON 解析失败时重试几次",
+                "default": 2
             },
-            "score_threshold": {
-                "description": "评分阈值",
-                "type": "float",
-                "hint": "小模型综合评分低于此值时直接沉默（0~10）。调低=话多，调高=安静。",
-                "default": 4.0
+            "fallback_persona": {
+                "description": "备用人设",
+                "type": "text",
+                "hint": "主动消息生成时优先读 AstrBot 的人设，如果读不到则使用这里填的内容。留空则主动消息不带人设生成。",
+                "default": ""
             },
             "custom_judge_prompt": {
                 "description": "自定义判断指引",
@@ -189,6 +168,31 @@
                 "items": {"type": "string"},
                 "hint": "格式: 名字:QQ号或群号。例: 小明:123456789",
                 "default": []
+            }
+        }
+    },
+
+    "cache_settings": {
+        "description": "对话缓存",
+        "type": "object",
+        "items": {
+            "group_cache_size": {
+                "description": "群聊缓存条数",
+                "type": "int",
+                "hint": "每群最大消息数（1~1000）",
+                "default": 200
+            },
+            "private_cache_size": {
+                "description": "私聊缓存条数",
+                "type": "int",
+                "hint": "每个私聊最大消息数（1~1000）",
+                "default": 100
+            },
+            "persist_interval_seconds": {
+                "description": "持久化间隔（秒）",
+                "type": "int",
+                "hint": "缓存自动保存间隔，0 表示不持久化",
+                "default": 60
             }
         }
     },
