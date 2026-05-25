@@ -1,0 +1,242 @@
+{
+    "enable": {
+        "description": "启用插件",
+        "type": "bool",
+        "hint": "读空气 总开关",
+        "default": true
+    },
+
+    "cache_settings": {
+        "description": "对话缓存",
+        "type": "object",
+        "items": {
+            "group_cache_size": {
+                "description": "群聊缓存条数",
+                "type": "int",
+                "hint": "每群最大消息数（1~1000）",
+                "default": 200
+            },
+            "private_cache_size": {
+                "description": "私聊缓存条数",
+                "type": "int",
+                "hint": "每个私聊最大消息数（1~1000）",
+                "default": 100
+            },
+            "persist_interval_seconds": {
+                "description": "持久化间隔（秒）",
+                "type": "int",
+                "hint": "缓存自动保存间隔，0 表示不持久化",
+                "default": 60
+            }
+        }
+    },
+
+    "air_reading": {
+        "description": "读空气设置",
+        "type": "object",
+        "items": {
+            "enable_air_reading": {
+                "description": "启用读空气",
+                "type": "bool",
+                "default": true
+            },
+            "judge_provider_name": {
+                "description": "判断用小模型 Provider",
+                "type": "string",
+                "hint": "在 AstrBot 中配置的小模型提供商名称（如 gemini-flash）。必填，不填则读空气不工作。",
+                "default": "",
+                "_special": "select_provider"
+            },
+            "judge_max_retries": {
+                "description": "小模型重试次数",
+                "type": "int",
+                "hint": "JSON 解析失败时重试几次",
+                "default": 2
+            },
+            "bot_name": {
+                "description": "Bot 昵称",
+                "type": "string",
+                "hint": "群聊中 bot 的名字，消息里出现这个名字就触发判断",
+                "default": ""
+            },
+            "trigger_probability": {
+                "description": "触发概率",
+                "type": "float",
+                "hint": "每条群消息触发判断的概率（0~1）。被 @ 或命中关键词时固定触发。",
+                "default": 0.15
+            },
+            "keywords": {
+                "description": "触发关键词",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "命中这些关键词时无视概率直接触发",
+                "default": []
+            },
+            "blacklist_keywords": {
+                "description": "屏蔽关键词",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "命中这些关键词时直接跳过",
+                "default": []
+            },
+            "private_keywords": {
+                "description": "私聊触发关键词",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "格式: 关键词:目标QQ号。群里聊到这个关键词时，小模型会考虑私聊通知目标。例: 主人:123456789",
+                "default": []
+            },
+            "topic_interests": {
+                "description": "话题通知",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "格式: 话题:目标QQ号。聊到某话题时通知感兴趣的人（语义匹配）。例: AI技术:123456789",
+                "default": []
+            },
+            "enable_affection_route": {
+                "description": "好感影响私聊路由",
+                "type": "bool",
+                "hint": "开启后，私聊优先发给好感度高的人。关闭后只发给配置指定的目标。",
+                "default": true
+            },
+            "fallback_persona": {
+                "description": "备用人设",
+                "type": "text",
+                "hint": "主动消息生成时优先读 AstrBot 的人设，如果读不到则使用这里填的内容。留空则主动消息不带人设生成。",
+                "default": ""
+            },
+            "history_count": {
+                "description": "注入历史条数",
+                "type": "int",
+                "hint": "送给小模型判断时的最近聊天记录条数",
+                "default": 20
+            },
+            "cooldown_seconds": {
+                "description": "同群冷却时间（秒）",
+                "type": "int",
+                "hint": "同群两次主动回复的最小间隔",
+                "default": 30
+            },
+            "score_threshold": {
+                "description": "评分阈值",
+                "type": "float",
+                "hint": "小模型综合评分低于此值时直接沉默（0~10）。调低=话多，调高=安静。",
+                "default": 4.0
+            },
+            "custom_judge_prompt": {
+                "description": "自定义判断指引",
+                "type": "text",
+                "hint": "追加在小模型判断 prompt 末尾的自定义指引。可以写情绪、性格、行为规则等。留空则使用默认。",
+                "default": ""
+            }
+        }
+    },
+
+    "group_filter": {
+        "description": "群聊过滤",
+        "type": "object",
+        "items": {
+            "enable_all_groups": {
+                "description": "全部群启用",
+                "type": "bool",
+                "hint": "开启后对所有群生效（黑名单除外）",
+                "default": false
+            },
+            "enabled_groups": {
+                "description": "白名单群号",
+                "type": "list",
+                "items": {"type": "string"},
+                "default": []
+            },
+            "blocked_groups": {
+                "description": "黑名单群号",
+                "type": "list",
+                "items": {"type": "string"},
+                "default": []
+            }
+        }
+    },
+
+    "tools_settings": {
+        "description": "LLM 工具设置",
+        "type": "object",
+        "items": {
+            "enable_send_message": {
+                "description": "启用发消息工具",
+                "type": "bool",
+                "default": true
+            },
+            "enable_read_cache": {
+                "description": "启用读缓存工具",
+                "type": "bool",
+                "default": true
+            },
+            "enable_forward_history": {
+                "description": "启用转发记录工具",
+                "type": "bool",
+                "default": true
+            },
+            "allowed_send_targets": {
+                "description": "允许发送的目标",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "限制 LLM 只能给这些目标发消息，为空不限制",
+                "default": []
+            },
+            "contacts": {
+                "description": "手动通讯录",
+                "type": "list",
+                "items": {"type": "string"},
+                "hint": "格式: 名字:QQ号或群号。例: 小明:123456789",
+                "default": []
+            }
+        }
+    },
+
+    "advanced": {
+        "description": "高级设置",
+        "type": "object",
+        "items": {
+            "curfew_start": {
+                "description": "宵禁开始时间",
+                "type": "string",
+                "hint": "格式 HH:MM，如 23:00。宵禁期间不主动发消息。留空不启用。",
+                "default": ""
+            },
+            "curfew_end": {
+                "description": "宵禁结束时间",
+                "type": "string",
+                "hint": "格式 HH:MM，如 07:00",
+                "default": ""
+            },
+            "lonely_minutes": {
+                "description": "寂寞触发时间（分钟）",
+                "type": "int",
+                "hint": "多少分钟没人说话后情绪变 lonely",
+                "default": 30
+            },
+            "sleepy_minutes": {
+                "description": "犯困触发时间（分钟）",
+                "type": "int",
+                "hint": "多少分钟没人说话后情绪变犯困",
+                "default": 60
+            },
+            "private_message_cooldown": {
+                "description": "主动私聊冷却（分钟）",
+                "type": "int",
+                "hint": "两次主动私聊之间的全局最小间隔（分钟），包括跨群通知、话题分享等所有主动私聊，防止刷屏。旧版秒数配置仍兼容（>300 自动视为秒）。",
+                "default": 5
+            },
+            "no_response_tag": {
+                "description": "无回复标记",
+                "type": "string",
+                "default": "<NO_RESPONSE>"
+            },
+            "debug_mode": {
+                "description": "调试模式",
+                "type": "bool",
+                "default": false
+            }
+        }
+    }
+}

@@ -1,0 +1,1 @@
+# 読空気 不需要额外依赖，全部基于 AstrBot 内置 API + Python 标准库

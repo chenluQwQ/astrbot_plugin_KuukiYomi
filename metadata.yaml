@@ -1,0 +1,6 @@
+name: astrbot_plugin_KuukiYomi
+display_name: 读空气 - 智能群聊感知
+desc: 让 AI 学会读空气：智能缓存群聊/私聊对话，LLM 自主判断是否回复，并可通过工具主动发消息、跨群读取上下文。
+version: 0.2.0
+author: chenluQwQ
+repo: https://github.com/chenluQwQ/astrbot_plugin_KuukiYomi
