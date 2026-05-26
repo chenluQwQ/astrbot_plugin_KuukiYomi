@@ -598,8 +598,14 @@ class KuukiYomi(Star):
 
         # ── 阈值过滤：分数太低直接沉默 ──
         threshold = float(self._cfg_group("air_reading", "score_threshold", 3.5))
-        # 小模型主动给 reply 时，适当降低阈值（尊重模型判断）
-        effective_threshold = threshold * 0.8 if action == "reply" else threshold
+        # 小模型主动给出 action 时适当降低阈值（尊重模型判断）
+        # private 更宽松：模型专门选了目标，说明判断了话题相关性
+        if action == "private":
+            effective_threshold = threshold * 0.6
+        elif action == "reply":
+            effective_threshold = threshold * 0.8
+        else:
+            effective_threshold = threshold
         if overall < effective_threshold and action != "silent":
             logger.debug(f"[KuukiYomi] 分数 {overall:.1f} < 阈值 {effective_threshold:.1f}，覆盖为沉默")
             action = "silent"
