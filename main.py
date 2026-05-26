@@ -616,6 +616,7 @@ class KuukiYomi(Star):
             event.set_extra("kuukiyomi_triggered", True)
             event.set_extra("kuukiyomi_sender_name", sender_name)
             event.set_extra("kuukiyomi_sender_id", sender_id)
+            event.set_extra("kuukiyomi_history", history_text)
             self.air.mark_replied(platform, group_id)
             logger.info(f"[KuukiYomi] ✨ 触发群回复 | 群={group_id} | {sender_name}({sender_id}) | overall={overall:.1f}")
 
@@ -869,15 +870,17 @@ class KuukiYomi(Star):
             if cleaned:
                 logger.debug(f"[KuukiYomi] 清理了 {cleaned} 条旧 fake_tool_call")
 
-        # 读空气触发时告诉主模型 + 追加发送者信息
+        # 读空气触发时告诉主模型 + 追加发送者信息 + 注入群聊上下文
         if event.get_extra("kuukiyomi_triggered"):
             s_name = event.get_extra("kuukiyomi_sender_name") or ""
             s_id = event.get_extra("kuukiyomi_sender_id") or ""
+            history = event.get_extra("kuukiyomi_history") or ""
             emotion_note = self.social.emotion.format_for_llm()
 
-            # note 放 system_prompt，prompt 只标记发送者
+            # note 放 system_prompt，包含群聊历史 + 发送者信息
             if hasattr(req, "system_prompt"):
-                note = f"\n\n（注意：本次是你主动参与群聊的，不是用户叫你。你正在回复 {s_name}({s_id}) 的消息。回复应自然随意，称呼正确。{emotion_note}）"
+                history_section = f"\n\n【群聊最近的对话记录】（以下是群里最近在聊的内容，请结合上下文回复）\n{history}" if history else ""
+                note = f"{history_section}\n\n（注意：本次是你主动参与群聊的，不是用户叫你。你正在回复 {s_name}({s_id}) 的消息。回复应自然随意，称呼正确。{emotion_note}）"
                 req.system_prompt = (req.system_prompt or "") + note
 
             if s_name and s_id and hasattr(req, "prompt") and req.prompt:
