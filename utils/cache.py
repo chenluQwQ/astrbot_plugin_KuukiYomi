@@ -250,8 +250,11 @@ class ConversationCache:
                     "messages": bucket.to_list(),
                 }
             path = os.path.join(self._persist_dir, "cache.json")
+            json_str = json.dumps(data, ensure_ascii=False, default=str)
+            # 清理 surrogate 字符（QQ 表情可能产生孤立 surrogate）
+            json_str = json_str.encode('utf-8', errors='surrogatepass').decode('utf-8', errors='replace')
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
+                f.write(json_str)
             logger.debug(f"[KuukiYomi] 缓存已保存: {len(data)} 个会话")
         except Exception as e:
             logger.error(f"[KuukiYomi] 缓存保存失败: {e}")
@@ -262,7 +265,7 @@ class ConversationCache:
         if not os.path.exists(path):
             return
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
                 data = json.load(f)
             for key, bucket_data in data.items():
                 _, chat_type, _ = self.parse_key(key)
