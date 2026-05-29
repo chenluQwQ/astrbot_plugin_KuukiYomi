@@ -870,18 +870,48 @@ class KuukiYomi(Star):
             if cleaned:
                 logger.debug(f"[KuukiYomi] 清理了 {cleaned} 条旧 fake_tool_call")
 
-        # 读空气触发时告诉主模型 + 追加发送者信息 + 注入群聊上下文
+        # 读空气触发时：注入群聊上下文 + 发送者信息（不修改 system_prompt）
         if event.get_extra("kuukiyomi_triggered"):
             s_name = event.get_extra("kuukiyomi_sender_name") or ""
             s_id = event.get_extra("kuukiyomi_sender_id") or ""
             history = event.get_extra("kuukiyomi_history") or ""
             emotion_note = self.social.emotion.format_for_llm()
 
-            # note 放 system_prompt，包含群聊历史 + 发送者信息
-            if hasattr(req, "system_prompt"):
-                history_section = f"\n\n【群聊最近的对话记录】（以下是群里最近在聊的内容，请结合上下文回复）\n{history}" if history else ""
-                note = f"{history_section}\n\n（注意：本次是你主动参与群聊的，不是用户叫你。你正在回复 {s_name}({s_id}) 的消息。回复应自然随意，称呼正确。{emotion_note}）"
-                req.system_prompt = (req.system_prompt or "") + note
+            # 全部走 fake_tool_call 注入 contexts（下次自动清理）
+            import uuid
+            ctx_id = f"kuuki_ctx_{uuid.uuid4().hex[:8]}"
+            if not hasattr(req, "contexts") or req.contexts is None:
+                req.contexts = []
+
+            note = f"本次是你主动参与群聊的，不是用户叫你。你正在回复 {s_name}({s_id}) 的消息。回复应自然随意，称呼正确。{emotion_note}"
+            history_section = f"\n\n【群聊最近的对话记录】\n{history}" if history else ""
+            ctx_content = f"{note}{history_section}"
+
+            fake_call = {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{
+                    "id": ctx_id,
+                    "type": "function",
+                    "function": {
+                        "name": "read_group_chat",
+                        "arguments": "{}"
+                    }
+                }]
+            }
+            fake_result = {
+                "role": "tool",
+                "tool_call_id": ctx_id,
+                "content": ctx_content
+            }
+            # 插到最后一条 user 消息前面
+            insert_pos = len(req.contexts)
+            for i in range(len(req.contexts) - 1, -1, -1):
+                if isinstance(req.contexts[i], dict) and req.contexts[i].get("role") == "user":
+                    insert_pos = i
+                    break
+            req.contexts.insert(insert_pos, fake_call)
+            req.contexts.insert(insert_pos + 1, fake_result)
 
             if s_name and s_id and hasattr(req, "prompt") and req.prompt:
                 req.prompt = f"[{s_name}({s_id}) 说] {req.prompt}"
