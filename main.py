@@ -1205,7 +1205,7 @@ class KuukiYomi(Star):
 
     @llm_tool(name="kuuki_send_message")
     async def tool_send_message(self, event: AstrMessageEvent, target_id: str, content: str):
-        '''主动给指定的群或人发送一条消息。
+        '''主动给指定的群或人发送一条消息。发送前会自动读取目标窗口的最近上下文。
 
         Args:
             target_id(string): 目标群号或用户 ID
@@ -1220,10 +1220,27 @@ class KuukiYomi(Star):
         if not umo:
             return f"找不到 {target_id} 的会话记录，无法发送。"
 
+        # 读取目标窗口最近上下文
+        platform = event.get_platform_name()
+        recent_msgs = self.cache.get_recent(platform, True, str(target_id), 10)
+        if not recent_msgs:
+            recent_msgs = self.cache.get_recent(platform, False, str(target_id), 10)
+        context_text = ""
+        if recent_msgs:
+            context_text = "\n\n【目标窗口最近对话】\n" + "\n".join(m.format_for_llm() for m in recent_msgs)
+
         try:
             chain = MessageChain().message(content)
             await self.context.send_message(umo, chain)
-            return f"已发送到 {target_id}。"
+            # 写入缓存，后续能看到自己发过什么
+            self.cache.append(platform or "default", True, str(target_id), CachedMessage(
+                sender_id="bot",
+                sender_name="bot",
+                content=content,
+                timestamp=time.time(),
+                is_bot=True,
+            ))
+            return f"已发送到 {target_id}。{context_text}"
         except Exception as e:
             return f"发送失败: {e}"
 
@@ -1286,6 +1303,14 @@ class KuukiYomi(Star):
             return f"找不到 {target_id} 的会话记录。"
         try:
             await self.context.send_message(umo, MessageChain().message(summary))
+            # 写入目标缓存
+            self.cache.append(event.get_platform_name() or "default", True, str(target_id), CachedMessage(
+                sender_id="bot",
+                sender_name="bot",
+                content=summary,
+                timestamp=time.time(),
+                is_bot=True,
+            ))
             return f"已转发 {len(msgs)} 条到 {target_id}。"
         except Exception as e:
             return f"转发失败: {e}"
