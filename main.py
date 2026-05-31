@@ -695,7 +695,8 @@ class KuukiYomi(Star):
                             target_name=target_name,
                         )
                         self._pending_private_ctx[str(target)] = {
-                            "messages": fake_msgs, "ts": time.time(), "bot_message": content
+                            "messages": fake_msgs, "ts": time.time(),
+                            "bot_message": content, "rounds_left": 6
                         }
                         self._save_pending_ctx()
                         await self._do_private_send(target, content)
@@ -1010,7 +1011,7 @@ class KuukiYomi(Star):
                         # 过期清理
                         self._recent_private_sends.pop(sender_id, None)
 
-        # 私聊时：有 pending 上下文才注入（仅主动消息场景）
+        # 私聊时：有 pending 上下文就注入（持续到轮次用完或超时）
         if event.is_private_chat() and hasattr(req, "contexts"):
             sender_id = event.get_sender_id()
             if not sender_id:
@@ -1022,10 +1023,11 @@ class KuukiYomi(Star):
                 fake_msgs = pending.get("messages", pending) if isinstance(pending, dict) else pending
                 ts = pending.get("ts", 0) if isinstance(pending, dict) else 0
                 bot_said = pending.get("bot_message", "") if isinstance(pending, dict) else ""
+                rounds_left = pending.get("rounds_left", 0) if isinstance(pending, dict) else 0
 
-                # 超时过期（默认30分钟），清除
+                # 超时或轮次用完 → 清除
                 ctx_timeout = float(self._cfg_group("advanced", "private_context_timeout", 1800))
-                if ts > 0 and (time.time() - ts) > ctx_timeout:
+                if rounds_left <= 0 or (ts > 0 and (time.time() - ts) > ctx_timeout):
                     self._pending_private_ctx.pop(sid, None)
                     self._save_pending_ctx()
                     return
@@ -1034,28 +1036,22 @@ class KuukiYomi(Star):
                 if not hasattr(req, "contexts") or req.contexts is None:
                     req.contexts = []
 
-                # 上下文保持注入直到超时（不再一次性清除）
-
-                # 给 tool_result 加时间提示
+                # 每轮都一样注入，跟第一轮完全相同
                 import copy
                 inject_msgs = copy.deepcopy(fake_msgs)
+
                 if ts > 0:
-                    from datetime import datetime as dt
                     elapsed = time.time() - ts
                     if elapsed < 60:
                         time_note = "（刚才发的）"
                     elif elapsed < 3600:
                         time_note = f"（{int(elapsed / 60)} 分钟前发的）"
-                    elif elapsed < 86400:
-                        time_note = f"（{int(elapsed / 3600)} 小时前发的）"
                     else:
-                        time_note = f"（{int(elapsed / 86400)} 天前发的）"
-
+                        time_note = f"（{int(elapsed / 3600)} 小时前发的）"
                     for msg in inject_msgs:
                         if isinstance(msg, dict) and msg.get("role") == "tool":
                             msg["content"] = time_note + "\n" + msg.get("content", "")
 
-                # 注入 bot 主动发的消息作为 assistant 轮次
                 if bot_said:
                     inject_msgs.append({"role": "assistant", "content": bot_said})
 
@@ -1068,7 +1064,10 @@ class KuukiYomi(Star):
                 for j, fm in enumerate(inject_msgs):
                     req.contexts.insert(insert_pos + j, fm)
 
-                logger.info(f"[KuukiYomi] 📎 注入主动消息上下文 → 私聊 {sid}")
+                # 扣轮次
+                pending["rounds_left"] = rounds_left - 1
+                self._save_pending_ctx()
+                logger.debug(f"[KuukiYomi] 📎 私聊上下文注入 → {sid} | 剩余轮次={rounds_left - 1}")
 
     # ── 回复后评估：更新好感/印象/情绪 ──
 
