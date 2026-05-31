@@ -99,6 +99,12 @@ class KuukiYomi(Star):
         self._pending_private_ctx: dict = {}
         self._load_pending_ctx()
 
+        # 监听模式：group_id → {"until": float, "remaining": int}
+        self._listening_groups: dict = {}
+
+        # 最近私聊发送记录：user_id → timestamp（用于群聊注入私聊上下文）
+        self._recent_private_sends: dict = {}
+
         # 缓存的人格摘要（给 scheduler 用，因为 scheduler 没有 event）
         self._cached_persona: str = ""
 
@@ -482,13 +488,37 @@ class KuukiYomi(Star):
             bot_id=self._get_bot_id(event),
         )
 
+        # ── 监听模式：bot 刚回复或关键词未回复后，强制触发判断 ──
+        is_listening = False
+        listen_info = self._listening_groups.get(group_id)
+        if listen_info:
+            if time.time() > listen_info["until"] or listen_info["remaining"] <= 0:
+                # 过期或次数用完，清除
+                self._listening_groups.pop(group_id, None)
+            else:
+                is_listening = True
+                listen_info["remaining"] -= 1
+                if not should:
+                    should = True
+                    logger.debug(f"[KuukiYomi] 监听模式触发 | 群={group_id} | 剩余={listen_info['remaining']}")
+
         if not should:
             return
+
+        # 检查是否关键词触发
+        is_keyword_hit = False
+        msg_text = (event.message_str or "").strip()
+        for kw in (air_cfg.get("keywords") or []):
+            if kw and kw in msg_text:
+                is_keyword_hit = True
+                break
 
         # ── 调小模型判断 ──
         self.air.set_busy(platform, group_id, True)
         try:
-            await self._judge_and_route(event, air_cfg, is_pk_hit)
+            await self._judge_and_route(event, air_cfg, is_pk_hit,
+                                        is_listening=is_listening,
+                                        is_keyword_hit=is_keyword_hit)
         except Exception as e:
             logger.error(f"[KuukiYomi] 判断异常: {e}")
             import traceback
@@ -496,7 +526,8 @@ class KuukiYomi(Star):
         finally:
             self.air.set_busy(platform, group_id, False)
 
-    async def _judge_and_route(self, event: AstrMessageEvent, air_cfg: dict, is_pk_hit: bool):
+    async def _judge_and_route(self, event: AstrMessageEvent, air_cfg: dict, is_pk_hit: bool,
+                               *, is_listening: bool = False, is_keyword_hit: bool = False):
         """调小模型判断 → 根据结果路由"""
 
         # 获取小模型 provider
@@ -673,6 +704,26 @@ class KuukiYomi(Star):
         else:
             logger.debug(f"[KuukiYomi] 😶 沉默 | overall={overall:.1f}")
 
+        # ── 监听模式激活 ──
+        group_id = event.get_group_id()
+        if group_id and not is_listening:  # 避免监听模式自我循环
+            listen_count = int(air_cfg.get("post_listen_count", 5))
+            listen_minutes = float(air_cfg.get("post_listen_minutes", 2))
+
+            if action == "reply" and air_cfg.get("enable_post_reply_listen", True):
+                self._listening_groups[group_id] = {
+                    "until": time.time() + listen_minutes * 60,
+                    "remaining": listen_count,
+                }
+                logger.debug(f"[KuukiYomi] 🎧 进入监听模式（回复后）| 群={group_id} | {listen_count}条/{listen_minutes}分钟")
+
+            elif action == "silent" and is_keyword_hit and air_cfg.get("enable_keyword_listen", True):
+                self._listening_groups[group_id] = {
+                    "until": time.time() + listen_minutes * 60,
+                    "remaining": listen_count,
+                }
+                logger.debug(f"[KuukiYomi] 🎧 进入监听模式（关键词未回复）| 群={group_id} | {listen_count}条/{listen_minutes}分钟")
+
     async def _generate_private_content(self, *, target_name: str, hint: str,
                                          group_name: str, history_text: str,
                                          private_history: str = "") -> str:
@@ -733,6 +784,8 @@ class KuukiYomi(Star):
             await self.context.send_message(umo, chain)
             # 更新全局私聊冷却
             self._last_private_send_ts = time.time()
+            # 记录最近私聊对象（用于群聊注入私聊上下文）
+            self._recent_private_sends[target_id] = time.time()
             # 存进缓存，对方回复时能看到上文
             self.cache.append("default", True, target_id, CachedMessage(
                 sender_id="bot",
@@ -916,6 +969,47 @@ class KuukiYomi(Star):
             if s_name and s_id and hasattr(req, "prompt") and req.prompt:
                 req.prompt = f"[{s_name}({s_id}) 说] {req.prompt}"
 
+        # ── 私聊→群聊桥接：最近私聊过的用户在群里发言时，注入私聊上下文 ──
+        if not event.is_private_chat() and hasattr(req, "contexts"):
+            air_cfg = self.cfg.get("air_reading") or {}
+            bridge_count = int(air_cfg.get("private_group_context_count", 5))
+            bridge_minutes = float(air_cfg.get("private_group_context_minutes", 20))
+            if bridge_count > 0:
+                sender_id = str(event.get_sender_id() or "")
+                if sender_id and sender_id in self._recent_private_sends:
+                    elapsed = time.time() - self._recent_private_sends[sender_id]
+                    if elapsed < bridge_minutes * 60:
+                        platform = event.get_platform_name()
+                        priv_msgs = self.cache.get_recent(platform, True, sender_id, bridge_count)
+                        if not priv_msgs:
+                            priv_msgs = self.cache.get_recent("default", True, sender_id, bridge_count)
+                        if priv_msgs:
+                            import uuid
+                            ctx_id = f"kuuki_ctx_{uuid.uuid4().hex[:8]}"
+                            if not hasattr(req, "contexts") or req.contexts is None:
+                                req.contexts = []
+                            sender_name = event.get_sender_name() or sender_id
+                            priv_text = "\n".join(m.format_for_llm() for m in priv_msgs)
+                            fake_call = {
+                                "role": "assistant", "content": "",
+                                "tool_calls": [{"id": ctx_id, "type": "function",
+                                    "function": {"name": "read_private_chat", "arguments": "{}"}}]
+                            }
+                            fake_result = {
+                                "role": "tool", "tool_call_id": ctx_id,
+                                "content": f"【你和 {sender_name} 最近的私聊记录】（{int(elapsed/60)}分钟前私聊过，请结合这些上下文）\n{priv_text}"
+                            }
+                            insert_pos = len(req.contexts)
+                            for i in range(len(req.contexts) - 1, -1, -1):
+                                if isinstance(req.contexts[i], dict) and req.contexts[i].get("role") == "user":
+                                    insert_pos = i
+                                    break
+                            req.contexts.insert(insert_pos, fake_call)
+                            req.contexts.insert(insert_pos + 1, fake_result)
+                    else:
+                        # 过期清理
+                        self._recent_private_sends.pop(sender_id, None)
+
         # 私聊时：有 pending 上下文才注入（仅主动消息场景）
         if event.is_private_chat() and hasattr(req, "contexts"):
             sender_id = event.get_sender_id()
@@ -940,9 +1034,7 @@ class KuukiYomi(Star):
                 if not hasattr(req, "contexts") or req.contexts is None:
                     req.contexts = []
 
-                # 一次性注入后清除
-                self._pending_private_ctx.pop(sid, None)
-                self._save_pending_ctx()
+                # 上下文保持注入直到超时（不再一次性清除）
 
                 # 给 tool_result 加时间提示
                 import copy

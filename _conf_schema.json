@@ -84,6 +84,43 @@
                 "default": true
             },
 
+            "enable_post_reply_listen": {
+                "description": "回复后监听",
+                "type": "bool",
+                "hint": "bot 在群里回复后，自动监听后续消息并判断是否需要继续回复。",
+                "default": true
+            },
+            "enable_keyword_listen": {
+                "description": "关键词未回复后监听",
+                "type": "bool",
+                "hint": "关键词触发判断但小模型决定沉默后，继续监听后续消息。",
+                "default": true
+            },
+            "post_listen_count": {
+                "description": "监听消息条数",
+                "type": "int",
+                "hint": "监听模式下最多判断几条消息",
+                "default": 5
+            },
+            "post_listen_minutes": {
+                "description": "监听超时（分钟）",
+                "type": "float",
+                "hint": "监听模式的最长持续时间",
+                "default": 2
+            },
+            "private_group_context_count": {
+                "description": "私聊桥接条数",
+                "type": "int",
+                "hint": "在群里遇到最近私聊过的用户时，注入多少条私聊记录。0 = 关闭。",
+                "default": 5
+            },
+            "private_group_context_minutes": {
+                "description": "私聊桥接有效期（分钟）",
+                "type": "int",
+                "hint": "私聊后多少分钟内在群里遇到该用户时注入上下文",
+                "default": 20
+            },
+
             "history_count": {
                 "description": "注入历史条数",
                 "type": "int",
